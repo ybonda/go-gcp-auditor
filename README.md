@@ -1,7 +1,7 @@
 # GCP Auditor
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/ybonda/gcp-auditor)](https://github.com/ybonda/gcp-auditor/releases)
+[![Release](https://img.shields.io/github/v/release/ybonda/go-gcp-auditor)](https://github.com/ybonda/go-gcp-auditor/releases)
 
 
 GCP Auditor is a powerful command-line tool for auditing Google Cloud Platform services across all your projects. It helps identify enabled services, analyze their usage patterns, and generate comprehensive reports for better cloud resource management.

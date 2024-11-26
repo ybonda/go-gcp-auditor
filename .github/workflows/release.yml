@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    branches:
+    - main
+  workflow_dispatch:
+    inputs:
+      version_increment:
+        description: 'Version increment type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+      prerelease:
+        description: 'Create as prerelease'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+        cache: true
+
+    - name: Run tests
+      run: make test
+
+    - name: Calculate version
+      id: version
+      run: |
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          # Manual version increment based on input
+          IFS='.' read -r major minor patch <<< "${LAST_TAG#v}"
+          case "${{ inputs.version_increment }}" in
+            major)
+              NEW_TAG="v$((major + 1)).0.0"
+              ;;
+            minor)
+              NEW_TAG="v${major}.$((minor + 1)).0"
+              ;;
+            patch)
+              NEW_TAG="v${major}.${minor}.$((patch + 1))"
+              ;;
+          esac
+        else
+          # Automatic patch increment for pushes to main
+          MAJOR_MINOR=$(echo $LAST_TAG | cut -d. -f1,2)
+          PATCH=$(echo $LAST_TAG | cut -d. -f3)
+          NEW_TAG="${MAJOR_MINOR}.$((PATCH + 1))"
+        fi
+        echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
+    - name: Build artifacts
+      run: |
+        GOOS=linux GOARCH=amd64 go build -o gcp-auditor-linux-amd64
+        GOOS=darwin GOARCH=amd64 go build -o gcp-auditor-darwin-amd64
+        GOOS=darwin GOARCH=arm64 go build -o gcp-auditor-darwin-arm64
+        GOOS=windows GOARCH=amd64 go build -o gcp-auditor-windows-amd64.exe
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.new_tag }}
+        name: Release ${{ steps.version.outputs.new_tag }}
+        draft: false
+        prerelease: ${{ inputs.prerelease }}
+        files: |
+          gcp-auditor-linux-amd64
+          gcp-auditor-darwin-amd64
+          gcp-auditor-darwin-arm64
+          gcp-auditor-windows-amd64.exe
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

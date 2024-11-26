@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -133,18 +134,53 @@ func (s *AuditService) Audit(ctx context.Context) (domain.AuditReport, error) {
 }
 
 func (s *AuditService) calculateStatistics(report *domain.AuditReport) {
-	uniqueServices := make(map[string]struct{})
+	uniqueServices := make(map[string]*domain.ServiceDetail)
 	servicesWithNoUsage := 0
 
-	for _, services := range report.Services {
+	// Calculate service details
+	for projectID, services := range report.Services {
 		for _, service := range services {
-			uniqueServices[service.Name] = struct{}{}
-			if service.Usage != nil && service.Usage.RequestCount == 0 {
-				servicesWithNoUsage++
+			// Get or create service detail
+			detail, exists := uniqueServices[service.Name]
+			if !exists {
+				detail = &domain.ServiceDetail{
+					Name: service.Name,
+				}
+				uniqueServices[service.Name] = detail
+			}
+
+			detail.ProjectCount++
+			detail.EnabledIn = append(detail.EnabledIn, projectID)
+
+			if service.Usage != nil &&
+				service.Usage.Status == domain.UsageStatusSuccess {
+				detail.TotalRequests += service.Usage.RequestCount
+				if service.Usage.RequestCount == 0 {
+					servicesWithNoUsage++
+				}
 			}
 		}
 	}
 
+	// Convert map to sorted slice
+	serviceDetails := make([]*domain.ServiceDetail, 0, len(uniqueServices))
+	for _, detail := range uniqueServices {
+		// Sort the projects list for consistent output
+		sort.Strings(detail.EnabledIn)
+		serviceDetails = append(serviceDetails, detail)
+	}
+
+	// Sort by projects count (descending), and by total requests for equal project counts
+	sort.Slice(serviceDetails, func(i, j int) bool {
+		if serviceDetails[i].ProjectCount != serviceDetails[j].ProjectCount {
+			return serviceDetails[i].ProjectCount > serviceDetails[j].ProjectCount
+		}
+		// Secondary sort by total requests when project counts are equal
+		return serviceDetails[i].TotalRequests > serviceDetails[j].TotalRequests
+	})
+
+	// Update statistics
 	report.Statistics.UniqueServices = len(uniqueServices)
 	report.Statistics.ServicesWithNoUsage = servicesWithNoUsage
+	report.Statistics.ServiceDetails = serviceDetails
 }

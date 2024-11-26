@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ybonda/gcp-auditor/internal/domain"
@@ -169,6 +170,20 @@ func (r *MarkdownReporter) generateMainReport(reportDir, projectsDir string, rep
 		fmt.Fprintf(file, "\n")
 	}
 
+	fmt.Fprintf(file, "## Services Summary\n\n")
+	fmt.Fprintf(file, "Below is a comprehensive list of all services found across projects, sorted by usage:\n\n")
+	fmt.Fprintf(file, "| Service | Projects Count | Total Requests | Enabled In Projects |\n")
+	fmt.Fprintf(file, "|---------|----------------|----------------|--------------------|\n")
+
+	for _, detail := range report.Statistics.ServiceDetails {
+		projectsList := r.formatProjectsList(detail.EnabledIn)
+		fmt.Fprintf(file, "| %s | %d | %d | %s |\n",
+			detail.Name,
+			detail.ProjectCount,
+			detail.TotalRequests,
+			projectsList)
+	}
+
 	return nil
 }
 
@@ -290,4 +305,18 @@ func calculateProjectStats(services []domain.Service) domain.ServiceStatistics {
 	}
 
 	return stats
+}
+
+func (r *MarkdownReporter) formatProjectsList(projects []string) string {
+	if len(projects) == 0 {
+		return "-"
+	}
+
+	if len(projects) > 5 {
+		return fmt.Sprintf("%s (and %d more)",
+			strings.Join(projects[:5], ", "),
+			len(projects)-5)
+	}
+
+	return strings.Join(projects, ", ")
 }

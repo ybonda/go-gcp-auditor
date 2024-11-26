@@ -59,6 +59,7 @@ type AuditStatistics struct {
 	SkippedProjects     int
 	UniqueServices      int
 	ServicesWithNoUsage int
+	ServiceDetails      []*ServiceDetail
 }
 
 type ServiceStatistics struct {
@@ -68,4 +69,11 @@ type ServiceStatistics struct {
 	NoAccessServices int
 	ErrorServices    int
 	TotalRequests    int64
+}
+
+type ServiceDetail struct {
+	Name          string
+	ProjectCount  int
+	TotalRequests int64
+	EnabledIn     []string
 }

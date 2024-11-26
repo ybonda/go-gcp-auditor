@@ -65,6 +65,12 @@ func (r *ServiceRepository) ListServices(ctx context.Context, projectID string, 
 		g.Go(func() error {
 			for work := range workChan {
 				serviceName := cleanServiceName(work.service.Name)
+				// Skip services with empty names
+				if serviceName == "" {
+					r.logger.Debug("Skipping service with empty name in project %s", projectID)
+					continue
+				}
+
 				service := domain.Service{
 					Name:      serviceName,
 					State:     work.service.State,
@@ -224,8 +230,19 @@ func (r *ServiceRepository) GetServiceUsage(
 }
 
 func cleanServiceName(name string) string {
+	if name == "" {
+		return ""
+	}
+
 	if idx := strings.Index(name, "services/"); idx != -1 {
 		name = name[idx+len("services/"):]
 	}
+
+	// Additional validation - ensure we have a valid service name
+	name = strings.TrimSpace(name)
+	if !strings.Contains(name, ".googleapis.com") {
+		return ""
+	}
+
 	return name
 }

@@ -100,12 +100,13 @@ GCP Auditor generates a structured report directory containing:
 ```bash
 
 reports/
-└── 20241124_150405/         # Timestamp directory
-    ├── report.md                    # Main report
-    └── projects_report/          # Project reports directory
+└── 20241127_123456/
+    ├── projects.json
+    ├── services.json
+    ├── report.md
+    └── projects_report/
         ├── project-1.md
-        ├── project-2.md
-        └── ...
+        └── project-2.md
 ```
 
 ## Development

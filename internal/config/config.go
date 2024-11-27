@@ -3,12 +3,12 @@ package config
 import "time"
 
 type Config struct {
-	OutputDir   string
-	DaysToAudit int
-	Format      string
-	Verbose     bool
-	Period      time.Duration
-	Concurrency int
+	OutputDir     string
+	DaysToAudit   int
+	Format        string
+	Verbose       bool
+	Period        time.Duration
+	Concurrency   int
 }
 
 type Option func(*Config)
@@ -45,6 +45,7 @@ func WithConcurrency(n int) Option {
 		}
 	}
 }
+
 
 func NewConfig(opts ...Option) *Config {
 	// Default configuration

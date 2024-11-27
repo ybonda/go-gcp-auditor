@@ -123,6 +123,16 @@ func (s *AuditService) Audit(ctx context.Context) (domain.AuditReport, error) {
 	report.GeneratedAt = time.Now()
 	s.calculateStatistics(&report)
 
+	// Generate reports using all configured reporters
+	s.logger.Info("Generating reports...")
+	for _, reporter := range s.reporters {
+		s.logger.Debug("Using reporter: %T", reporter)
+		if err := reporter.GenerateReport(report); err != nil {
+			s.logger.Error("Failed to generate report: %v", err)
+			return report, err
+		}
+	}
+
 	duration := report.GeneratedAt.Sub(report.StartTime).Round(time.Second)
 	s.logger.Info("Audit completed in %s", duration)
 	s.logger.Info("Found %d unique services across %d projects",

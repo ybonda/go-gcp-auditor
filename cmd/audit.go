@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -22,11 +24,15 @@ var auditCmd = &cobra.Command{
 	Long: `Performs a comprehensive audit of GCP services across all accessible projects.
 
 Examples:
-  # Run audit with default settings
+  # Run audit with default settings (generates both markdown and JSON)
   gcp-auditor audit
 
   # Run audit for the last 60 days
   gcp-auditor audit --days 60
+
+  # Run audit with specific format
+  gcp-auditor audit --format markdown
+  gcp-auditor audit --format json
 
   # Run audit with verbose output
   gcp-auditor audit --verbose`,
@@ -36,12 +42,14 @@ Examples:
 func init() {
 	rootCmd.AddCommand(auditCmd)
 	auditCmd.Flags().Bool("verbose", false, "Enable verbose output")
+	auditCmd.Flags().String("format", "", "Report format (markdown, json, all)")
 }
 
 func runAudit(cmd *cobra.Command, args []string) error {
 	verbose, _ := cmd.Flags().GetBool("verbose")
+	format, _ := cmd.Flags().GetString("format")
 
-	// Create configuration
+	// Create configuration with default values
 	cfg := config.NewConfig(
 		config.WithOutputDir(outputDir),
 		config.WithDays(daysToAudit),
@@ -49,8 +57,31 @@ func runAudit(cmd *cobra.Command, args []string) error {
 		config.WithConcurrency(3),
 	)
 
+	// Only override format if explicitly specified
+	if format != "" {
+		// Validate format
+		switch format {
+		case "markdown", "json", "all":
+			cfg = config.NewConfig(
+				config.WithOutputDir(outputDir),
+				config.WithDays(daysToAudit),
+				config.WithVerbose(verbose),
+				config.WithConcurrency(3),
+				config.WithFormat(format),
+			)
+		default:
+			return fmt.Errorf("invalid format %q. Must be one of: markdown, json, all", format)
+		}
+	}
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
 	logger = logging.NewLogger(cfg.Verbose)
 	logger.Debug("Configured audit period: %d days (%s)", daysToAudit, cfg.Period)
+	logger.Debug("Using report format: %s", cfg.Format)
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
@@ -68,26 +99,30 @@ func runAudit(cmd *cobra.Command, args []string) error {
 	projectRepo := gcp.NewProjectRepository(gcpClient.ResourceManager, cfg.Verbose)
 	serviceRepo := gcp.NewServiceRepository(gcpClient.ServiceUsage, gcpClient.Monitoring, cfg.Verbose)
 
-	// Initialize markdown reporter
-	reporter := report.NewMarkdownReporter(cfg.OutputDir)
+	// Initialize reporters based on format
+	var reporters []domain.Reporter
+	switch cfg.Format {
+	case "markdown":
+		reporters = append(reporters, report.NewMarkdownReporter(outputDir))
+	case "json":
+		reporters = append(reporters, report.NewJSONReporter(outputDir))
+	case "all":
+		reporters = append(reporters, report.NewMarkdownReporter(outputDir))
+		reporters = append(reporters, report.NewJSONReporter(outputDir))
+	}
 
 	// Create audit service with unified config
 	auditService := service.NewAuditService(
 		projectRepo,
 		serviceRepo,
-		[]domain.Reporter{reporter},
+		reporters,
 		cfg,
 	)
+
 	// Run audit
 	auditReport, err := auditService.Audit(ctx)
 	if err != nil {
 		logger.Error("Audit failed: %v", err)
-		return err
-	}
-
-	// Generate report
-	if err := reporter.GenerateReport(auditReport); err != nil {
-		logger.Error("Failed to generate report: %v", err)
 		return err
 	}
 

@@ -71,11 +71,17 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
 ### Basic Usage
 
 ```bash
-# Run audit with default settings (30 days lookback)
+# Run audit with default settings (30 days lookback with both markdown and json report)
 gcp-auditor audit
 
 # Run audit with custom time period
 gcp-auditor audit --days 60
+
+# Run audit with json only report
+gcp-audit audit --json
+
+# Run audit with markdown report
+gcp-audit audit --markdown
 
 # Enable verbose output
 gcp-auditor audit --verbose
